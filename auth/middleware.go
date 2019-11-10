@@ -1,4 +1,4 @@
-package session
+package auth
 
 import (
 	"context"
@@ -28,7 +28,6 @@ type TokenDecoder interface {
 type Configuration struct {
 	TokenFinder  TokenFinder
 	TokenDecoder TokenDecoder
-	Audience     string
 }
 
 func NewMiddleware(c Configuration) func(http.Handler) http.Handler {

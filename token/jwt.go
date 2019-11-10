@@ -30,9 +30,17 @@ func (d *SignedCodec) DecodeToken(token string, dest interface{}) error {
 	if err != nil {
 		return err
 	}
+	if jwk == nil {
+		return fmt.Errorf("key id not found: %s", parsedToken.Headers[0].KeyID)
+	}
 
 	claims := jwt.Claims{}
-	err = parsedToken.Claims(jwk.Public(), &claims, dest)
+	switch jwk.Key.(type) {
+	case []byte:
+		err = parsedToken.Claims(jwk, &claims, dest)
+	default:
+		err = parsedToken.Claims(jwk.Public(), &claims, dest)
+	}
 	if err != nil {
 		return err
 	}
@@ -65,18 +73,30 @@ func (d *SignedCodec) EncodeToken(claims interface{}) (string, error) {
 		return "", err
 	}
 
+	signerOptions := &jose.SignerOptions{}
+	signerOptions.WithType("JWT")
+	signerOptions.WithHeader("kid", key.KeyID)
+
 	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.RS512,
+		Algorithm: jose.SignatureAlgorithm(key.Algorithm),
 		Key:       key,
-	}, (&jose.SignerOptions{}).WithType("JWT"))
+	}, signerOptions)
 	if err != nil {
 		return "", err
 	}
 
-	stdClaims := jwt.Claims{
-		Issuer:   d.Issuer,
-		Audience: jwt.Audience([]string{d.Audience}),
-		Expiry:   jwt.NewNumericDate(time.Now().Add(d.Duration)),
+	stdClaims := jwt.Claims{}
+
+	if d.Issuer != "" {
+		stdClaims.Issuer = d.Issuer
+	}
+
+	if d.Audience != "" {
+		stdClaims.Audience = []string{d.Audience}
+	}
+
+	if d.Duration > 0 {
+		stdClaims.Expiry = jwt.NewNumericDate(time.Now().Add(d.Duration))
 	}
 
 	token, err := jwt.Signed(signer).Claims(stdClaims).Claims(claims).CompactSerialize()
