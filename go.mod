@@ -1,4 +1,4 @@
-module iam
+module github.com/pierredavidbelanger/iam
 
 go 1.13
 
