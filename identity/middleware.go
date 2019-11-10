@@ -32,13 +32,13 @@ func NewMiddleware(config Configuration) func(http.Handler) http.Handler {
 
 			if r.URL.Path == config.LoginCallbackPath {
 
-				token, err := config.OAuth2Config.Exchange(r.Context(), r.URL.Query().Get("code"))
+				tokens, err := config.OAuth2Config.Exchange(r.Context(), r.URL.Query().Get("code"))
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
 
-				idToken, idTokenFound := token.Extra("id_token").(string)
+				idToken, idTokenFound := tokens.Extra("id_token").(string)
 				if !idTokenFound {
 					w.WriteHeader(http.StatusUnauthorized)
 					return

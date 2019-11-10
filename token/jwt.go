@@ -12,13 +12,14 @@ type KeyFinder interface {
 	FindKeyByUse(string) (*jose.JSONWebKey, error)
 }
 
-type SignedDecoder struct {
+type SignedCodec struct {
 	KeyFinder KeyFinder
 	Issuer    string
 	Audience  string
+	Duration  time.Duration
 }
 
-func (d *SignedDecoder) DecodeToken(token string, dest interface{}) error {
+func (d *SignedCodec) DecodeToken(token string, dest interface{}) error {
 
 	parsedToken, err := jwt.ParseSigned(token)
 	if err != nil {
@@ -31,7 +32,7 @@ func (d *SignedDecoder) DecodeToken(token string, dest interface{}) error {
 	}
 
 	claims := jwt.Claims{}
-	err = parsedToken.Claims(jwk, &claims, dest)
+	err = parsedToken.Claims(jwk.Public(), &claims, dest)
 	if err != nil {
 		return err
 	}
@@ -55,6 +56,35 @@ func (d *SignedDecoder) DecodeToken(token string, dest interface{}) error {
 	}
 
 	return nil
+}
+
+func (d *SignedCodec) EncodeToken(claims interface{}) (string, error) {
+
+	key, err := d.KeyFinder.FindKeyByUse("sig")
+	if err != nil {
+		return "", err
+	}
+
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS512,
+		Key:       key,
+	}, (&jose.SignerOptions{}).WithType("JWT"))
+	if err != nil {
+		return "", err
+	}
+
+	stdClaims := jwt.Claims{
+		Issuer:   d.Issuer,
+		Audience: jwt.Audience([]string{d.Audience}),
+		Expiry:   jwt.NewNumericDate(time.Now().Add(d.Duration)),
+	}
+
+	token, err := jwt.Signed(signer).Claims(stdClaims).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
 
 func contains(s []string, e string) bool {
